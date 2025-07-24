@@ -49,8 +49,12 @@ func NewOpenAIEmbedder(config *EmbeddingConfig, cache Cache) (*OpenAIEmbedder, e
 	client := openai.NewClientWithConfig(clientConfig)
 	
 	// Create rate limiter channel
-	rateLimiter := make(chan struct{}, config.RateLimit)
-	for i := 0; i < config.RateLimit; i++ {
+	rateLimit := config.RateLimit
+	if rateLimit <= 0 {
+		rateLimit = 60 // Default rate limit
+	}
+	rateLimiter := make(chan struct{}, rateLimit)
+	for i := 0; i < rateLimit; i++ {
 		rateLimiter <- struct{}{}
 	}
 	
@@ -304,9 +308,15 @@ func (e *OpenAIEmbedder) GetDimension() int {
 
 // Close releases any resources held by the embedder
 func (e *OpenAIEmbedder) Close() error {
-	// Close rate limiter channel
+	// Close rate limiter channel safely
 	if e.rateLimiter != nil {
-		close(e.rateLimiter)
+		select {
+		case <-e.rateLimiter:
+		default:
+		}
+		// Don't close the channel as it might cause panic
+		// Just let it be garbage collected
+		e.rateLimiter = nil
 	}
 	
 	// Close cache if it has a Close method
@@ -470,7 +480,12 @@ func (e *OpenAIEmbedder) generateCacheKey(text, model string) string {
 }
 
 func (e *OpenAIEmbedder) refillRateLimiter() {
-	ticker := time.NewTicker(time.Minute / time.Duration(e.config.RateLimit))
+	rateLimit := e.config.RateLimit
+	if rateLimit <= 0 {
+		rateLimit = 60 // Default rate limit
+	}
+	
+	ticker := time.NewTicker(time.Minute / time.Duration(rateLimit))
 	defer ticker.Stop()
 	
 	for range ticker.C {

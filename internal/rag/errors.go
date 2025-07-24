@@ -28,10 +28,12 @@ var (
 	ErrInvalidStrategy      = NewRAGError("invalid search strategy", ErrorTypeValidation)
 	
 	// Cache errors
-	ErrCacheNotFound        = NewRAGError("cache entry not found", ErrorTypeNotFound)
+	ErrCacheKeyNotFound     = NewRAGError("cache key not found", ErrorTypeNotFound)
 	ErrCacheFull            = NewRAGError("cache is at maximum capacity", ErrorTypeCapacity)
 	ErrCacheCorrupted       = NewRAGError("cache data is corrupted", ErrorTypeInternal)
 	ErrCacheSerializationFailed = NewRAGError("cache serialization failed", ErrorTypeInternal)
+	ErrCacheClosed          = NewRAGError("cache is closed", ErrorTypeInternal)
+	ErrInvalidCacheSize     = NewRAGError("invalid cache size", ErrorTypeValidation)
 	
 	// Chunking errors
 	ErrChunkingFailed       = NewRAGError("document chunking failed", ErrorTypeInternal)
