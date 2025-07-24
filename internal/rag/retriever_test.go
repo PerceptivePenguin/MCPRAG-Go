@@ -667,3 +667,142 @@ func TestBasicRetriever_GetStats(t *testing.T) {
 		t.Errorf("expected 1 query, got %d", stats.TotalQueries)
 	}
 }
+
+func TestBasicRetriever_GetDocument(t *testing.T) {
+	vectorStore := newMockVectorStore()
+	embedder := newMockEmbedder()
+	retriever, err := NewBasicRetriever(vectorStore, embedder, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create retriever: %v", err)
+	}
+	defer retriever.Close()
+
+	ctx := context.Background()
+
+	// Test empty ID
+	_, err = retriever.GetDocument(ctx, "")
+	if err == nil {
+		t.Error("Expected error for empty ID")
+	}
+
+	// Test non-existent document
+	_, err = retriever.GetDocument(ctx, "non-existent")
+	if err == nil {
+		t.Error("Expected error for non-existent document")
+	}
+
+	// Add a document first
+	doc := Document{
+		ID:      "test-doc",
+		Content: "Test content",
+	}
+	err = retriever.AddDocument(ctx, doc)
+	if err != nil {
+		t.Fatalf("Failed to add document: %v", err)
+	}
+
+	// Test getting existing document  
+	retrieved, err := retriever.GetDocument(ctx, "test-doc_chunk_0")
+	if err != nil {
+		t.Fatalf("Failed to get document: %v", err)
+	}
+
+	if retrieved.Content != "Test content" {
+		t.Errorf("Expected content 'Test content', got '%s'", retrieved.Content)
+	}
+}
+
+func TestBasicRetriever_DeleteDocument(t *testing.T) {
+	vectorStore := newMockVectorStore()
+	embedder := newMockEmbedder()
+	retriever, err := NewBasicRetriever(vectorStore, embedder, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create retriever: %v", err)
+	}
+	defer retriever.Close()
+
+	ctx := context.Background()
+
+	// Test empty ID
+	err = retriever.DeleteDocument(ctx, "")
+	if err == nil {
+		t.Error("Expected error for empty ID")
+	}
+
+	// Test deleting non-existent document - mock doesn't return error for non-existent docs
+	err = retriever.DeleteDocument(ctx, "non-existent")
+	// Note: Mock store doesn't return error for non-existent docs, so we don't assert error
+}
+
+func TestHybridRetriever(t *testing.T) {
+	vectorStore := newMockVectorStore()
+	embedder := newMockEmbedder()
+	
+	basic, err := NewBasicRetriever(vectorStore, embedder, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create basic retriever: %v", err)
+	}
+	defer basic.Close()
+
+	// Test mismatched lengths
+	strategies := []SearchStrategy{&mockSearchStrategy{}}
+	weights := []float32{0.5, 0.5}
+	
+	_, err = NewHybridRetriever(basic, strategies, weights)
+	if err == nil {
+		t.Error("Expected error for mismatched strategy and weight lengths")
+	}
+
+	// Test valid hybrid retriever
+	weights = []float32{1.0}
+	hybrid, err := NewHybridRetriever(basic, strategies, weights)
+	if err != nil {
+		t.Fatalf("Failed to create hybrid retriever: %v", err)
+	}
+
+	// Test hybrid retrieve with no strategies
+	emptyHybrid, err := NewHybridRetriever(basic, []SearchStrategy{}, []float32{})
+	if err != nil {
+		t.Fatalf("Failed to create empty hybrid retriever: %v", err)
+	}
+
+	query := Query{
+		Text:      "test query",
+		TopK:      5,
+		Threshold: 0.5,
+	}
+
+	// Should fall back to basic retriever
+	_, err = emptyHybrid.Retrieve(context.Background(), query)
+	if err != nil {
+		t.Errorf("Failed to retrieve with empty hybrid: %v", err)
+	}
+
+	// Test with strategies
+	_, err = hybrid.Retrieve(context.Background(), query)
+	if err != nil {
+		t.Errorf("Failed to retrieve with hybrid: %v", err)
+	}
+}
+
+// Mock search strategy for testing
+type mockSearchStrategy struct{}
+
+func (m *mockSearchStrategy) Search(ctx context.Context, query Query, store vector.Store) (*RetrievalResult, error) {
+	return &RetrievalResult{
+		Query: query,
+		Documents: []Document{
+			{ID: "mock-doc", Content: "Mock content"},
+		},
+		Scores:     []float32{0.9},
+		TotalFound: 1,
+	}, nil
+}
+
+func (m *mockSearchStrategy) GetName() string {
+	return "mock"
+}
+
+func (m *mockSearchStrategy) GetDescription() string {
+	return "Mock search strategy for testing"
+}

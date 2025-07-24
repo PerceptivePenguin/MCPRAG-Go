@@ -453,3 +453,94 @@ func TestTextChunker_EdgeCases(t *testing.T) {
 		t.Error("expected error for zero chunk size")
 	}
 }
+
+func TestTextChunker_GetOverlapContent(t *testing.T) {
+	tokenizer := NewSimpleTokenizer("")
+	chunker := NewTextChunker(tokenizer)
+	ctx := context.Background()
+	
+	// Test with overlap to trigger getOverlapContent function
+	doc := Document{
+		ID:      "test",
+		Content: "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.",
+	}
+	
+	config := ChunkingOptions{
+		Strategy:     ChunkByTokens,
+		MaxChunkSize: 10,
+		Overlap:      5,
+	}
+	
+	chunks, err := chunker.ChunkDocument(ctx, doc, config)
+	if err != nil {
+		t.Fatalf("Failed to chunk document: %v", err)
+	}
+	
+	// Should create overlapping chunks
+	if len(chunks) < 2 {
+		t.Error("Expected at least 2 chunks with overlap")
+	}
+}
+
+func TestTextChunker_ExtendedOverlapHandling(t *testing.T) {
+	tokenizer := NewSimpleTokenizer("")  
+	chunker := NewTextChunker(tokenizer)
+	ctx := context.Background()
+	
+	// Test getOverlapSentences with complex content
+	doc := Document{
+		ID:      "overlap-test", 
+		Content: "Sentence one goes here. Sentence two is longer and more detailed. Sentence three continues the pattern. Sentence four adds more complexity. Sentence five wraps up.",
+	}
+	
+	config := ChunkingOptions{
+		Strategy:     ChunkBySentences,
+		MaxChunkSize: 50,
+		Overlap:      20,
+		PreserveStructure: true,
+	}
+	
+	chunks, err := chunker.ChunkDocument(ctx, doc, config)
+	if err != nil {
+		t.Fatalf("Failed to chunk by sentences with overlap: %v", err)
+	}
+	
+	// Just verify the function runs without error, don't require specific chunk count
+	if len(chunks) == 0 {
+		t.Error("Expected at least one chunk")
+	}
+	
+	// Verify proper overlap handling
+	for i, chunk := range chunks {
+		if chunk.Content == "" {
+			t.Errorf("Chunk %d is empty", i)
+		}
+	}
+}
+
+func TestTextChunker_SemanticCoherence(t *testing.T) {
+	tokenizer := NewSimpleTokenizer("")
+	chunker := NewTextChunker(tokenizer)
+	
+	// Test calculateTopicCoherence function 
+	currentText := "technology computer software development programming"
+	newSentence := "algorithm data structure database network"
+	
+	score := chunker.calculateTopicCoherence(currentText, newSentence)
+	
+	if score < 0 || score > 1 {
+		t.Errorf("Topic coherence score should be between 0 and 1, got %f", score)
+	}
+	
+	// Test with empty current text
+	score2 := chunker.calculateTopicCoherence("", "some new text")
+	if score2 != 1.0 {
+		t.Errorf("Expected coherence of 1.0 for empty current text, got %f", score2)
+	}
+	
+	// Test with empty new sentence
+	score3 := chunker.calculateTopicCoherence("some text", "")
+	if score3 != 0.0 {
+		t.Errorf("Expected coherence of 0.0 for empty new sentence, got %f", score3)
+	}
+}
