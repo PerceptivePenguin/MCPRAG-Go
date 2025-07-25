@@ -10,6 +10,49 @@ import (
 	"github.com/PerceptivePenguin/MCPRAG-Go/internal/vector"
 )
 
+// RetrieverConfig is an alias for RetrievalConfig for backward compatibility
+type RetrieverConfig = RetrievalConfig
+
+// DefaultRetrieverConfig returns a default retriever configuration
+func DefaultRetrieverConfig() *RetrieverConfig {
+	return DefaultRetrievalConfig()
+}
+
+// NewRetriever creates a new retriever with auto-configuration
+// This function provides backward compatibility with the agent module
+func NewRetriever(config *RetrieverConfig) (Retriever, error) {
+	if config == nil {
+		config = DefaultRetrieverConfig()
+	}
+
+	// Create vector store
+	vectorStore, err := vector.NewMemoryStore(config.VectorStore)
+	if err != nil {
+		return nil, NewRAGErrorWithOp("new_retriever", 
+			fmt.Sprintf("failed to create vector store: %v", err), ErrorTypeInternal)
+	}
+
+	// Create embedder
+	cache, err := NewLRUCache(config.Cache)
+	if err != nil {
+		return nil, NewRAGErrorWithOp("new_retriever", 
+			fmt.Sprintf("failed to create cache: %v", err), ErrorTypeInternal)
+	}
+	
+	embedder, err := NewOpenAIEmbedder(config.Embedding, cache)
+	if err != nil {
+		return nil, NewRAGErrorWithOp("new_retriever", 
+			fmt.Sprintf("failed to create embedder: %v", err), ErrorTypeInternal)
+	}
+
+	// Create document processor
+	// TODO: Implement proper document processor factory
+	var processor DocumentProcessor
+
+	// Create basic retriever
+	return NewBasicRetriever(vectorStore, embedder, processor, config)
+}
+
 // BasicRetriever implements the Retriever interface using vector search
 type BasicRetriever struct {
 	vectorStore vector.Store
