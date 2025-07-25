@@ -165,11 +165,11 @@ func (r *ClientRegistry) ListAllTools(ctx context.Context) ([]Tool, error) {
 func (r *ClientRegistry) CallTool(ctx context.Context, toolName string, args interface{}) (*ToolResult, error) {
 	client, clientName, exists := r.GetClientByTool(toolName)
 	if !exists {
-		return nil, NewMCPError("callTool", "registry", toolName, ErrToolNotFound, false)
+		return nil, WrapToolError("callTool", "registry", toolName, ErrToolNotFound)
 	}
 	
 	if !client.IsConnected() {
-		return nil, NewMCPError("callTool", clientName, toolName, ErrClientNotConnected, false)
+		return nil, WrapConnectionError("callTool", clientName, ErrClientNotConnected)
 	}
 	
 	return client.CallTool(ctx, toolName, args)

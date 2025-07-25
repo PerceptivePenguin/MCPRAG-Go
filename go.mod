@@ -5,6 +5,7 @@ go 1.24.1
 require (
 	github.com/metoro-io/mcp-golang v0.14.0
 	github.com/sashabaranov/go-openai v1.35.7
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -18,7 +19,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // Indirect dependencies will be managed by go mod tidy

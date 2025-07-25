@@ -151,8 +151,7 @@ func (m *Manager) CallTool(ctx context.Context, toolName string, args interface{
 	m.mu.RUnlock()
 	
 	if !started {
-		return nil, NewMCPError("callTool", "manager", toolName, 
-			fmt.Errorf("manager not started"), false)
+		return nil, WrapError("callTool", "manager", fmt.Errorf("manager not started"))
 	}
 	
 	return m.registry.CallTool(ctx, toolName, args)

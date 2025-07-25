@@ -1,189 +1,81 @@
 package agent
 
 import (
-	"errors"
-	"fmt"
+	"time"
+
+	pkgerrors "github.com/PerceptivePenguin/MCPRAG-Go/pkg/errors"
 )
 
 var (
-	// ErrAgentNotStarted Agent 未启动错误
-	ErrAgentNotStarted = errors.New("agent not started")
-	
-	// ErrAgentAlreadyStarted Agent 已启动错误
-	ErrAgentAlreadyStarted = errors.New("agent already started")
-	
-	// ErrInvalidOptions 配置选项无效错误
-	ErrInvalidOptions = errors.New("invalid options")
-	
-	// ErrToolCallFailed 工具调用失败错误
-	ErrToolCallFailed = errors.New("tool call failed")
-	
-	// ErrMaxToolCallsExceeded 超过最大工具调用次数错误
-	ErrMaxToolCallsExceeded = errors.New("max tool calls exceeded")
-	
-	// ErrToolCallTimeout 工具调用超时错误
-	ErrToolCallTimeout = errors.New("tool call timeout")
-	
-	// ErrNoToolsAvailable 无可用工具错误
-	ErrNoToolsAvailable = errors.New("no tools available")
-	
-	// ErrRAGRetrievalFailed RAG 检索失败错误
-	ErrRAGRetrievalFailed = errors.New("rag retrieval failed")
-	
-	// ErrContextTooLong 上下文过长错误
-	ErrContextTooLong = errors.New("context too long")
-	
-	// ErrChatClientError Chat 客户端错误
-	ErrChatClientError = errors.New("chat client error")
-	
-	// ErrMCPClientError MCP 客户端错误
-	ErrMCPClientError = errors.New("mcp client error")
+	// Agent 特定错误，基于pkg/errors的通用错误类型
+	ErrAgentNotStarted         = pkgerrors.NewError(pkgerrors.ErrorTypeInternal, "agent not started")
+	ErrAgentAlreadyStarted     = pkgerrors.NewError(pkgerrors.ErrorTypeConflict, "agent already started")
+	ErrInvalidOptions          = pkgerrors.NewError(pkgerrors.ErrorTypeValidation, "invalid options")
+	ErrToolCallFailed          = pkgerrors.NewError(pkgerrors.ErrorTypeExternal, "tool call failed")
+	ErrMaxToolCallsExceeded    = pkgerrors.NewError(pkgerrors.ErrorTypeCapacity, "max tool calls exceeded")
+	ErrToolCallTimeout         = pkgerrors.NewError(pkgerrors.ErrorTypeTimeout, "tool call timeout")
+	ErrNoToolsAvailable        = pkgerrors.NewError(pkgerrors.ErrorTypeNotFound, "no tools available")
+	ErrRAGRetrievalFailed      = pkgerrors.NewError(pkgerrors.ErrorTypeExternal, "rag retrieval failed")
+	ErrContextTooLong          = pkgerrors.NewError(pkgerrors.ErrorTypeValidation, "context too long")
+	ErrChatClientError         = pkgerrors.NewError(pkgerrors.ErrorTypeExternal, "chat client error")
+	ErrMCPClientError          = pkgerrors.NewError(pkgerrors.ErrorTypeExternal, "mcp client error")
 )
 
-// AgentError Agent 错误类型
-type AgentError struct {
-	Op        string // 操作名称
-	Msg       string // 错误消息
-	Err       error  // 原始错误
-	Retryable bool   // 是否可重试
-}
-
-// Error 实现 error 接口
-func (e *AgentError) Error() string {
-	if e.Err != nil {
-		return fmt.Sprintf("agent %s: %s: %v", e.Op, e.Msg, e.Err)
-	}
-	return fmt.Sprintf("agent %s: %s", e.Op, e.Msg)
-}
-
-// Unwrap 支持 errors.Is 和 errors.As
-func (e *AgentError) Unwrap() error {
-	return e.Err
-}
-
-// IsRetryable 检查错误是否可重试
-func (e *AgentError) IsRetryable() bool {
-	return e.Retryable
-}
+// 使用pkg/errors中的统一错误类型
+type AgentError = pkgerrors.BaseError
 
 // NewAgentError 创建新的 Agent 错误
 func NewAgentError(op, msg string, retryable bool) *AgentError {
-	return &AgentError{
-		Op:        op,
-		Msg:       msg,
-		Retryable: retryable,
+	err := pkgerrors.NewError(pkgerrors.ErrorTypeInternal, msg).WithOperation(op).WithComponent("agent")
+	if retryable {
+		return err.WithDetails(map[string]string{"retryable": "true"})
 	}
+	return err
 }
 
 // WrapAgentError 包装错误为 AgentError
 func WrapAgentError(op, msg string, err error, retryable bool) *AgentError {
-	return &AgentError{
-		Op:        op,
-		Msg:       msg,
-		Err:       err,
-		Retryable: retryable,
+	agentErr := pkgerrors.NewErrorWithCause(pkgerrors.ErrorTypeInternal, msg, err).WithOperation(op).WithComponent("agent")
+	if retryable {
+		return agentErr.WithDetails(map[string]string{"retryable": "true"})
 	}
+	return agentErr
 }
 
 // WrapChatError 包装 Chat 错误
 func WrapChatError(op string, err error) *AgentError {
-	return WrapAgentError(op, "chat client error", err, true)
+	return pkgerrors.NewErrorWithCause(pkgerrors.ErrorTypeExternal, "chat client error", err).WithOperation(op).WithComponent("agent")
 }
 
 // WrapMCPError 包装 MCP 错误
 func WrapMCPError(op string, err error) *AgentError {
-	return WrapAgentError(op, "mcp client error", err, true)
+	return pkgerrors.NewErrorWithCause(pkgerrors.ErrorTypeExternal, "mcp client error", err).WithOperation(op).WithComponent("agent")
 }
 
 // WrapRAGError 包装 RAG 错误
 func WrapRAGError(op string, err error) *AgentError {
-	return WrapAgentError(op, "rag retrieval error", err, true)
+	return pkgerrors.NewErrorWithCause(pkgerrors.ErrorTypeExternal, "rag retrieval error", err).WithOperation(op).WithComponent("agent")
 }
 
 // IsTemporaryError 检查是否为临时错误
 func IsTemporaryError(err error) bool {
-	var agentErr *AgentError
-	if errors.As(err, &agentErr) {
-		return agentErr.IsRetryable()
-	}
-	
-	// 检查常见的临时错误
-	return errors.Is(err, ErrToolCallTimeout) ||
-		errors.Is(err, ErrToolCallFailed) ||
-		errors.Is(err, ErrRAGRetrievalFailed) ||
-		errors.Is(err, ErrChatClientError) ||
-		errors.Is(err, ErrMCPClientError)
+	return pkgerrors.IsTemporaryError(err)
 }
 
 // ShouldRetry 检查是否应该重试
 func ShouldRetry(err error, attempt, maxRetries int) bool {
-	if attempt >= maxRetries {
-		return false
-	}
-	
-	return IsTemporaryError(err)
+	return pkgerrors.ShouldRetry(err, attempt, maxRetries)
 }
 
 // GetRetryDelay 根据错误类型和尝试次数计算重试延迟
-func GetRetryDelay(baseDelay int, attempt int, backoff float64) int {
-	delay := float64(baseDelay)
-	for i := 0; i < attempt; i++ {
-		delay *= backoff
-	}
-	return int(delay)
+func GetRetryDelay(err error, attempt int) time.Duration {
+	return pkgerrors.GetRetryDelay(err, attempt)
 }
 
-// ErrorStats 错误统计信息
-type ErrorStats struct {
-	TotalErrors      int            `json:"totalErrors"`
-	RetryableErrors  int            `json:"retryableErrors"`
-	ErrorsByType     map[string]int `json:"errorsByType"`
-	ErrorsByOp       map[string]int `json:"errorsByOp"`
-}
+// 使用pkg/errors中的统一错误统计
+type ErrorStats = pkgerrors.ErrorStats
 
 // NewErrorStats 创建新的错误统计
 func NewErrorStats() *ErrorStats {
-	return &ErrorStats{
-		ErrorsByType: make(map[string]int),
-		ErrorsByOp:   make(map[string]int),
-	}
-}
-
-// RecordError 记录错误统计
-func (s *ErrorStats) RecordError(err error) {
-	s.TotalErrors++
-	
-	if IsTemporaryError(err) {
-		s.RetryableErrors++
-	}
-	
-	var agentErr *AgentError
-	if errors.As(err, &agentErr) {
-		s.ErrorsByOp[agentErr.Op]++
-		
-		// 根据原始错误分类
-		if agentErr.Err != nil {
-			errorType := fmt.Sprintf("%T", agentErr.Err)
-			s.ErrorsByType[errorType]++
-		} else {
-			s.ErrorsByType["AgentError"]++
-		}
-	} else {
-		errorType := fmt.Sprintf("%T", err)
-		s.ErrorsByType[errorType]++
-	}
-}
-
-// Reset 重置错误统计
-func (s *ErrorStats) Reset() {
-	s.TotalErrors = 0
-	s.RetryableErrors = 0
-	s.ErrorsByType = make(map[string]int)
-	s.ErrorsByOp = make(map[string]int)
-}
-
-// String 返回错误统计的字符串表示
-func (s *ErrorStats) String() string {
-	return fmt.Sprintf("ErrorStats: Total=%d, Retryable=%d, Types=%d, Ops=%d",
-		s.TotalErrors, s.RetryableErrors, len(s.ErrorsByType), len(s.ErrorsByOp))
+	return pkgerrors.NewErrorStats()
 }

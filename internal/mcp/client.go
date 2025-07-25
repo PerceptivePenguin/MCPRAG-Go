@@ -249,8 +249,8 @@ func (c *Client) executeToolCall(ctx context.Context, name string, args interfac
 	// 通过MCP协议调用真实工具
 	mcpResult, err := c.mcpClient.CallTool(timeoutCtx, name, args)
 	if err != nil {
-		return nil, NewMCPError("executeToolCall", c.config.ServerName, name, 
-			fmt.Errorf("MCP tool call failed: %w", err), true)
+		return nil, WrapToolError("executeToolCall", c.config.ServerName, name, 
+			fmt.Errorf("MCP tool call failed: %w", err))
 	}
 
 	// 将MCP结果转换为内部ToolResult结构

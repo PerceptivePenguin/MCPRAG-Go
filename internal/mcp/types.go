@@ -2,7 +2,8 @@ package mcp
 
 import (
 	"context"
-	"time"
+
+	"github.com/PerceptivePenguin/MCPRAG-Go/pkg/types"
 )
 
 // MCPClient 定义了通用的 MCP 客户端接口
@@ -44,62 +45,54 @@ type Content struct {
 
 // ClientConfig 客户端配置
 type ClientConfig struct {
-	ServerName  string        `json:"serverName"`
-	Transport   string        `json:"transport"`     // stdio, http, sse
-	Command     string        `json:"command,omitempty"`
-	Args        []string      `json:"args,omitempty"`
-	BaseURL     string        `json:"baseUrl,omitempty"`
-	Timeout     time.Duration `json:"timeout"`
-	MaxRetries  int           `json:"maxRetries"`
-	RetryDelay  time.Duration `json:"retryDelay"`
+	types.BaseConfig
+	
+	// MCP 特定配置
+	ServerName  string   `json:"server_name" yaml:"server_name"`
+	Transport   string   `json:"transport" yaml:"transport"`     // stdio, http, sse
+	Command     string   `json:"command,omitempty" yaml:"command,omitempty"`
+	Args        []string `json:"args,omitempty" yaml:"args,omitempty"`
+	BaseURL     string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 }
 
 // DefaultClientConfig 返回默认的客户端配置
 func DefaultClientConfig() ClientConfig {
 	return ClientConfig{
+		BaseConfig: types.DefaultBaseConfig(),
 		Transport:  "stdio",
-		Timeout:    30 * time.Second,
-		MaxRetries: 3,
-		RetryDelay: time.Second,
 	}
 }
 
 // NewSequentialThinkingConfig 创建Sequential Thinking服务器配置
 func NewSequentialThinkingConfig() ClientConfig {
 	return ClientConfig{
+		BaseConfig: types.DefaultBaseConfig(),
 		ServerName: "sequential-thinking",
 		Transport:  "stdio",
 		Command:    "npx",
 		Args:       []string{"@modelcontextprotocol/server-sequential-thinking"},
-		Timeout:    30 * time.Second,
-		MaxRetries: 3,
-		RetryDelay: time.Second,
 	}
 }
 
 // NewDeepWikiConfig 创建DeepWiki服务器配置
 func NewDeepWikiConfig() ClientConfig {
 	return ClientConfig{
+		BaseConfig: types.DefaultBaseConfig(),
 		ServerName: "deepwiki",
 		Transport:  "stdio",
 		Command:    "npx",
 		Args:       []string{"mcp-deepwiki@latest"},
-		Timeout:    30 * time.Second,
-		MaxRetries: 3,
-		RetryDelay: time.Second,
 	}
 }
 
 // NewContext7Config 创建Context7服务器配置
 func NewContext7Config() ClientConfig {
 	return ClientConfig{
+		BaseConfig: types.DefaultBaseConfig(),
 		ServerName: "context7",
 		Transport:  "stdio",
 		Command:    "npx",
 		Args:       []string{"@upstash/context7-mcp@latest"},
-		Timeout:    30 * time.Second,
-		MaxRetries: 3,
-		RetryDelay: time.Second,
 	}
 }
 

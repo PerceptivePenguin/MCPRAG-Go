@@ -2,24 +2,24 @@ package chat
 
 import (
 	"context"
-	"time"
 
+	"github.com/PerceptivePenguin/MCPRAG-Go/pkg/types"
 	"github.com/sashabaranov/go-openai"
 )
 
 // ChatClient 定义了聊天客户端的接口
 type ChatClient interface {
 	// Chat 发送聊天请求并返回响应
-	Chat(ctx context.Context, messages []Message) (*Response, error)
+	Chat(ctx context.Context, messages []types.Message) (*types.Response, error)
 	
 	// ChatStream 发送聊天请求并返回流式响应
-	ChatStream(ctx context.Context, messages []Message) (<-chan StreamResponse, error)
+	ChatStream(ctx context.Context, messages []types.Message) (<-chan types.StreamResponse, error)
 	
 	// AppendToolResult 添加工具调用结果到消息历史
 	AppendToolResult(toolCallID, result string)
 	
 	// GetMessages 获取当前消息历史
-	GetMessages() []Message
+	GetMessages() []types.Message
 	
 	// ClearMessages 清空消息历史
 	ClearMessages()
@@ -28,119 +28,72 @@ type ChatClient interface {
 	SetSystemPrompt(prompt string)
 }
 
-// Message 表示聊天消息
-type Message struct {
-	Role         string      `json:"role"`
-	Content      string      `json:"content"`
-	Name         string      `json:"name,omitempty"`
-	ToolCalls    []ToolCall  `json:"tool_calls,omitempty"`
-	ToolCallID   string      `json:"tool_call_id,omitempty"`
-}
-
-// ToolCall 表示工具调用
-type ToolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function FunctionCall     `json:"function"`
-}
-
-// FunctionCall 表示函数调用
-type FunctionCall struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-// Response 表示聊天响应
-type Response struct {
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Finish    bool       `json:"finish"`
-	Usage     Usage      `json:"usage,omitempty"`
-}
-
-// StreamResponse 表示流式响应
-type StreamResponse struct {
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Finished  bool       `json:"finished"`
-	Error     error      `json:"error,omitempty"`
-}
-
-// Usage 表示 token 使用情况
-type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
+// 使用pkg/types中的通用类型
+// 为了向后兼容，可以创建类型别名
+type (
+	Message        = types.Message
+	ToolCall       = types.ToolCall
+	FunctionCall   = types.FunctionCall
+	Response       = types.Response
+	StreamResponse = types.StreamResponse
+	Usage          = types.TokenUsage
+)
 
 // ClientConfig 客户端配置
 type ClientConfig struct {
-	APIKey           string        `json:"apiKey"`
-	BaseURL          string        `json:"baseUrl,omitempty"`
-	Model            string        `json:"model"`
-	Temperature      float32       `json:"temperature"`
-	MaxTokens        int           `json:"maxTokens"`
-	TopP             float32       `json:"topP"`
-	FrequencyPenalty float32       `json:"frequencyPenalty"`
-	PresencePenalty  float32       `json:"presencePenalty"`
-	Timeout          time.Duration `json:"timeout"`
-	MaxRetries       int           `json:"maxRetries"`
-	RetryDelay       time.Duration `json:"retryDelay"`
-	EnableTools      bool          `json:"enableTools"`
+	types.BaseConfig
+	types.ConnectionConfig
+	
+	// OpenAI 特定配置
+	Model            string  `json:"model" yaml:"model"`
+	Temperature      float32 `json:"temperature" yaml:"temperature"`
+	MaxTokens        int     `json:"max_tokens" yaml:"max_tokens"`
+	TopP             float32 `json:"top_p" yaml:"top_p"`
+	FrequencyPenalty float32 `json:"frequency_penalty" yaml:"frequency_penalty"`
+	PresencePenalty  float32 `json:"presence_penalty" yaml:"presence_penalty"`
+	EnableTools      bool    `json:"enable_tools" yaml:"enable_tools"`
 }
 
 // DefaultClientConfig 返回默认的客户端配置
 func DefaultClientConfig() ClientConfig {
 	return ClientConfig{
+		BaseConfig:       types.DefaultBaseConfig(),
+		ConnectionConfig: types.DefaultConnectionConfig(),
 		Model:            openai.GPT4o,
 		Temperature:      0.7,
 		MaxTokens:        4096,
 		TopP:             1.0,
 		FrequencyPenalty: 0.0,
 		PresencePenalty:  0.0,
-		Timeout:          60 * time.Second,
-		MaxRetries:       3,
-		RetryDelay:       time.Second,
 		EnableTools:      true,
 	}
 }
 
 // Client OpenAI 聊天客户端实现
 type Client struct {
-	config     ClientConfig
-	client     *openai.Client
-	messages   []Message
+	config       ClientConfig
+	client       *openai.Client
+	messages     []types.Message
 	systemPrompt string
 }
 
-// ToolDefinition 工具定义
-type ToolDefinition struct {
-	Type     string            `json:"type"`
-	Function FunctionDefinition `json:"function"`
-}
-
-// FunctionDefinition 函数定义
-type FunctionDefinition struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-}
-
-// Role 常量定义
-const (
-	RoleSystem    = "system"
-	RoleUser      = "user"
-	RoleAssistant = "assistant"
-	RoleTool      = "tool"
+// 使用pkg/types中的工具定义
+type (
+	ToolDefinition     = types.ToolDefinition
+	FunctionDefinition = types.FunctionDefinition
 )
 
-// ToolType 常量定义
+// 使用pkg/types中的常量
 const (
-	ToolTypeFunction = "function"
+	RoleSystem       = types.RoleSystem
+	RoleUser         = types.RoleUser
+	RoleAssistant    = types.RoleAssistant
+	RoleTool         = types.RoleTool
+	ToolTypeFunction = types.ToolTypeFunction
 )
 
 // convertToOpenAIMessages 转换消息格式为 OpenAI 格式
-func convertToOpenAIMessages(messages []Message) []openai.ChatCompletionMessage {
+func convertToOpenAIMessages(messages []types.Message) []openai.ChatCompletionMessage {
 	openaiMessages := make([]openai.ChatCompletionMessage, len(messages))
 	
 	for i, msg := range messages {
@@ -178,16 +131,16 @@ func convertToOpenAIMessages(messages []Message) []openai.ChatCompletionMessage 
 }
 
 // convertFromOpenAIResponse 转换 OpenAI 响应格式
-func convertFromOpenAIResponse(resp openai.ChatCompletionResponse) *Response {
+func convertFromOpenAIResponse(resp openai.ChatCompletionResponse) *types.Response {
 	if len(resp.Choices) == 0 {
-		return &Response{Finish: true}
+		return &types.Response{Finish: true}
 	}
 	
 	choice := resp.Choices[0]
-	response := &Response{
+	response := &types.Response{
 		Content: choice.Message.Content,
 		Finish:  choice.FinishReason == "stop" || choice.FinishReason == "length",
-		Usage: Usage{
+		Usage: types.TokenUsage{
 			PromptTokens:     resp.Usage.PromptTokens,
 			CompletionTokens: resp.Usage.CompletionTokens,
 			TotalTokens:      resp.Usage.TotalTokens,
@@ -196,12 +149,12 @@ func convertFromOpenAIResponse(resp openai.ChatCompletionResponse) *Response {
 	
 	// 转换工具调用
 	if len(choice.Message.ToolCalls) > 0 {
-		toolCalls := make([]ToolCall, len(choice.Message.ToolCalls))
+		toolCalls := make([]types.ToolCall, len(choice.Message.ToolCalls))
 		for i, toolCall := range choice.Message.ToolCalls {
-			toolCalls[i] = ToolCall{
+			toolCalls[i] = types.ToolCall{
 				ID:   toolCall.ID,
 				Type: string(toolCall.Type),
-				Function: FunctionCall{
+				Function: types.FunctionCall{
 					Name:      toolCall.Function.Name,
 					Arguments: toolCall.Function.Arguments,
 				},
@@ -214,25 +167,25 @@ func convertFromOpenAIResponse(resp openai.ChatCompletionResponse) *Response {
 }
 
 // convertFromOpenAIStreamResponse 转换 OpenAI 流式响应格式
-func convertFromOpenAIStreamResponse(resp openai.ChatCompletionStreamResponse) StreamResponse {
+func convertFromOpenAIStreamResponse(resp openai.ChatCompletionStreamResponse) types.StreamResponse {
 	if len(resp.Choices) == 0 {
-		return StreamResponse{Finished: true}
+		return types.StreamResponse{Finished: true}
 	}
 	
 	choice := resp.Choices[0]
-	streamResp := StreamResponse{
+	streamResp := types.StreamResponse{
 		Content:  choice.Delta.Content,
 		Finished: choice.FinishReason != "",
 	}
 	
 	// 转换工具调用
 	if len(choice.Delta.ToolCalls) > 0 {
-		toolCalls := make([]ToolCall, len(choice.Delta.ToolCalls))
+		toolCalls := make([]types.ToolCall, len(choice.Delta.ToolCalls))
 		for i, toolCall := range choice.Delta.ToolCalls {
-			toolCalls[i] = ToolCall{
+			toolCalls[i] = types.ToolCall{
 				ID:   toolCall.ID,
 				Type: string(toolCall.Type),
-				Function: FunctionCall{
+				Function: types.FunctionCall{
 					Name:      toolCall.Function.Name,
 					Arguments: toolCall.Function.Arguments,
 				},
@@ -245,7 +198,7 @@ func convertFromOpenAIStreamResponse(resp openai.ChatCompletionStreamResponse) S
 }
 
 // convertToOpenAITools 转换工具定义为 OpenAI 格式
-func convertToOpenAITools(tools []ToolDefinition) []openai.Tool {
+func convertToOpenAITools(tools []types.ToolDefinition) []openai.Tool {
 	openaiTools := make([]openai.Tool, len(tools))
 	
 	for i, tool := range tools {

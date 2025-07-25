@@ -8,6 +8,7 @@ import (
 	"github.com/PerceptivePenguin/MCPRAG-Go/internal/chat"
 	"github.com/PerceptivePenguin/MCPRAG-Go/internal/mcp"
 	"github.com/PerceptivePenguin/MCPRAG-Go/internal/rag"
+	"github.com/PerceptivePenguin/MCPRAG-Go/pkg/types"
 )
 
 // Agent 中央协调器
@@ -26,7 +27,7 @@ type Agent struct {
 	toolCalls  int
 	
 	// 统计
-	stats      *Stats
+	stats      *AgentStats
 	errorStats *ErrorStats
 	
 	// 控制
@@ -34,26 +35,21 @@ type Agent struct {
 	cancel context.CancelFunc
 }
 
-// Stats 统计信息
-type Stats struct {
-	StartTime         time.Time `json:"startTime"`
-	TotalRequests     int64     `json:"totalRequests"`
-	TotalToolCalls    int64     `json:"totalToolCalls"`
-	TotalRAGQueries   int64     `json:"totalRAGQueries"`
-	AverageResponseTime time.Duration `json:"averageResponseTime"`
-	LastRequestTime   time.Time `json:"lastRequestTime"`
+// AgentStats 扩展统计信息，基于通用Stats
+type AgentStats struct {
+	types.Stats
 	
-	// 并发统计
-	ConcurrentRequests int32 `json:"concurrentRequests"`
-	MaxConcurrentRequests int32 `json:"maxConcurrentRequests"`
+	// Agent 特定统计
+	TotalToolCalls    int64 `json:"total_tool_calls"`
+	TotalRAGQueries   int64 `json:"total_rag_queries"`
 	
 	// 工具调用统计
-	ToolCallsByName   map[string]int64 `json:"toolCallsByName"`
-	ToolCallDurations map[string]time.Duration `json:"toolCallDurations"`
+	ToolCallsByName   map[string]int64 `json:"tool_calls_by_name"`
+	ToolCallDurations map[string]time.Duration `json:"tool_call_durations"`
 	
 	// RAG 统计
-	RAGHitRate        float64 `json:"ragHitRate"`
-	RAGAverageLatency time.Duration `json:"ragAverageLatency"`
+	RAGHitRate        float64 `json:"rag_hit_rate"`
+	RAGAverageLatency time.Duration `json:"rag_average_latency"`
 	
 	mu sync.RWMutex
 }
@@ -80,62 +76,44 @@ type Response struct {
 	Error        string        `json:"error,omitempty"`
 }
 
-// ToolCall 工具调用信息
+// ToolCall Agent模块的工具调用结构，扩展了通用ToolCall
 type ToolCall struct {
 	ID       string        `json:"id"`
 	Name     string        `json:"name"`
-	Args     interface{}   `json:"args"`
-	Result   string        `json:"result"`
-	Duration time.Duration `json:"duration"`
-	Error    string        `json:"error,omitempty"`
+	Args     string        `json:"args"`
+	Duration time.Duration `json:"duration,omitempty"`
 }
 
-// TokenUsage Token 使用统计
-type TokenUsage struct {
-	PromptTokens     int `json:"promptTokens"`
-	CompletionTokens int `json:"completionTokens"`
-	TotalTokens      int `json:"totalTokens"`
-}
+// TokenUsage 使用pkg/types中的通用类型
+type TokenUsage = types.TokenUsage
 
-// StreamResponse 流式响应
+// StreamResponse Agent模块的流式响应结构，使用Agent专用的ToolCall类型
 type StreamResponse struct {
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	ToolCalls []ToolCall `json:"toolCalls,omitempty"`
-	Finished  bool      `json:"finished"`
-	Error     error     `json:"error,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	ID        string     `json:"id"`
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Finished  bool       `json:"finished"`
+	Error     error      `json:"error,omitempty"`
+	Timestamp time.Time  `json:"timestamp"`
 }
 
-// NewStats 创建新的统计信息
-func NewStats() *Stats {
-	return &Stats{
-		StartTime:         time.Now(),
+// NewAgentStats 创建新的Agent统计信息
+func NewAgentStats() *AgentStats {
+	return &AgentStats{
+		Stats:             *types.NewStats(),
 		ToolCallsByName:   make(map[string]int64),
 		ToolCallDurations: make(map[string]time.Duration),
 	}
 }
 
 // RecordRequest 记录请求统计
-func (s *Stats) RecordRequest(duration time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-	s.TotalRequests++
-	s.LastRequestTime = time.Now()
-	
-	// 计算平均响应时间
-	if s.TotalRequests == 1 {
-		s.AverageResponseTime = duration
-	} else {
-		s.AverageResponseTime = time.Duration(
-			(int64(s.AverageResponseTime)*int64(s.TotalRequests-1) + int64(duration)) / int64(s.TotalRequests),
-		)
-	}
+func (s *AgentStats) RecordRequest(duration time.Duration) {
+	// 使用通用Stats的方法记录基础统计
+	s.Stats.RecordRequest("agent", duration, true)
 }
 
 // RecordToolCall 记录工具调用统计
-func (s *Stats) RecordToolCall(name string, duration time.Duration) {
+func (s *AgentStats) RecordToolCall(name string, duration time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -154,7 +132,7 @@ func (s *Stats) RecordToolCall(name string, duration time.Duration) {
 }
 
 // RecordRAGQuery 记录 RAG 查询统计
-func (s *Stats) RecordRAGQuery(latency time.Duration, hitRate float64) {
+func (s *AgentStats) RecordRAGQuery(latency time.Duration, hitRate float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -172,29 +150,8 @@ func (s *Stats) RecordRAGQuery(latency time.Duration, hitRate float64) {
 	}
 }
 
-// IncrementConcurrentRequests 增加并发请求计数
-func (s *Stats) IncrementConcurrentRequests() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-	s.ConcurrentRequests++
-	if s.ConcurrentRequests > s.MaxConcurrentRequests {
-		s.MaxConcurrentRequests = s.ConcurrentRequests
-	}
-}
-
-// DecrementConcurrentRequests 减少并发请求计数
-func (s *Stats) DecrementConcurrentRequests() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-	if s.ConcurrentRequests > 0 {
-		s.ConcurrentRequests--
-	}
-}
-
-// GetStats 获取统计信息副本
-func (s *Stats) GetStats() Stats {
+// GetAgentStats 获取Agent统计信息副本
+func (s *AgentStats) GetAgentStats() AgentStats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
@@ -209,51 +166,15 @@ func (s *Stats) GetStats() Stats {
 		toolCallDurations[k] = v
 	}
 	
-	return Stats{
-		StartTime:             s.StartTime,
-		TotalRequests:         s.TotalRequests,
-		TotalToolCalls:        s.TotalToolCalls,
-		TotalRAGQueries:       s.TotalRAGQueries,
-		AverageResponseTime:   s.AverageResponseTime,
-		LastRequestTime:       s.LastRequestTime,
-		ConcurrentRequests:    s.ConcurrentRequests,
-		MaxConcurrentRequests: s.MaxConcurrentRequests,
-		ToolCallsByName:       toolCallsByName,
-		ToolCallDurations:     toolCallDurations,
-		RAGHitRate:            s.RAGHitRate,
-		RAGAverageLatency:     s.RAGAverageLatency,
+	baseStats := s.Stats.GetStats()
+	
+	return AgentStats{
+		Stats:             baseStats,
+		TotalToolCalls:    s.TotalToolCalls,
+		TotalRAGQueries:   s.TotalRAGQueries,
+		ToolCallsByName:   toolCallsByName,
+		ToolCallDurations: toolCallDurations,
+		RAGHitRate:        s.RAGHitRate,
+		RAGAverageLatency: s.RAGAverageLatency,
 	}
-}
-
-// Reset 重置统计信息
-func (s *Stats) Reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-	s.StartTime = time.Now()
-	s.TotalRequests = 0
-	s.TotalToolCalls = 0
-	s.TotalRAGQueries = 0
-	s.AverageResponseTime = 0
-	s.LastRequestTime = time.Time{}
-	s.ConcurrentRequests = 0
-	s.MaxConcurrentRequests = 0
-	s.ToolCallsByName = make(map[string]int64)
-	s.ToolCallDurations = make(map[string]time.Duration)
-	s.RAGHitRate = 0
-	s.RAGAverageLatency = 0
-}
-
-// String 返回统计信息的字符串表示
-func (s *Stats) String() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	
-	uptime := time.Since(s.StartTime)
-	return "Agent Stats: " +
-		"Uptime=" + uptime.String() + ", " +
-		"Requests=" + string(rune(s.TotalRequests)) + ", " +
-		"ToolCalls=" + string(rune(s.TotalToolCalls)) + ", " +
-		"RAGQueries=" + string(rune(s.TotalRAGQueries)) + ", " +
-		"AvgResponseTime=" + s.AverageResponseTime.String()
 }

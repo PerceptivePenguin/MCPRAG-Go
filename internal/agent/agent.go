@@ -41,7 +41,7 @@ func NewAgent(opts ...Option) (*Agent, error) {
 		chatClient:   chatClient,
 		mcpManager:   mcpManager,
 		ragRetriever: ragRetriever,
-		stats:        NewStats(),
+		stats:        NewAgentStats(),
 		errorStats:   NewErrorStats(),
 		ctx:          ctx,
 		cancel:       cancel,
@@ -150,8 +150,7 @@ func (a *Agent) Process(ctx context.Context, req Request) (*Response, error) {
 		}
 		
 		// 等待后重试
-		delay := time.Duration(GetRetryDelay(int(a.options.RetryDelay/time.Millisecond), 
-			attempt, a.options.RetryBackoff)) * time.Millisecond
+		delay := GetRetryDelay(err, attempt)
 		
 		select {
 		case <-ctx.Done():
@@ -493,8 +492,8 @@ func (a *Agent) registerMCPTools() error {
 }
 
 // GetStats 获取统计信息
-func (a *Agent) GetStats() Stats {
-	return a.stats.GetStats()
+func (a *Agent) GetStats() AgentStats {
+	return a.stats.GetAgentStats()
 }
 
 // GetErrorStats 获取错误统计
