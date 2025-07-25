@@ -45,7 +45,7 @@ type Content struct {
 // ClientConfig 客户端配置
 type ClientConfig struct {
 	ServerName  string        `json:"serverName"`
-	Transport   string        `json:"transport"`
+	Transport   string        `json:"transport"`     // stdio, http, sse
 	Command     string        `json:"command,omitempty"`
 	Args        []string      `json:"args,omitempty"`
 	BaseURL     string        `json:"baseUrl,omitempty"`
@@ -64,34 +64,45 @@ func DefaultClientConfig() ClientConfig {
 	}
 }
 
-// DeepWikiClient DeepWiki 服务器客户端
-type DeepWikiClient struct {
-	config    ClientConfig
-	connected bool
+// NewSequentialThinkingConfig 创建Sequential Thinking服务器配置
+func NewSequentialThinkingConfig() ClientConfig {
+	return ClientConfig{
+		ServerName: "sequential-thinking",
+		Transport:  "stdio",
+		Command:    "npx",
+		Args:       []string{"@modelcontextprotocol/server-sequential-thinking"},
+		Timeout:    30 * time.Second,
+		MaxRetries: 3,
+		RetryDelay: time.Second,
+	}
 }
 
-// Context7Client Context7 服务器客户端
-type Context7Client struct {
-	config    ClientConfig
-	connected bool
+// NewDeepWikiConfig 创建DeepWiki服务器配置
+func NewDeepWikiConfig() ClientConfig {
+	return ClientConfig{
+		ServerName: "deepwiki",
+		Transport:  "stdio",
+		Command:    "npx",
+		Args:       []string{"mcp-deepwiki@latest"},
+		Timeout:    30 * time.Second,
+		MaxRetries: 3,
+		RetryDelay: time.Second,
+	}
 }
 
-// DeepWikiArgs DeepWiki 工具调用参数
-type DeepWikiArgs struct {
-	URL      string `json:"url" jsonschema:"required,description=URL, owner/repo name, or keyword to fetch"`
-	MaxDepth int    `json:"maxDepth,omitempty" jsonschema:"description=Fetch depth (0-1), default is 1"`
-	Mode     string `json:"mode,omitempty" jsonschema:"description=Output mode: aggregate or pages, default is aggregate"`
-	Verbose  bool   `json:"verbose,omitempty" jsonschema:"description=Enable verbose output"`
+// NewContext7Config 创建Context7服务器配置
+func NewContext7Config() ClientConfig {
+	return ClientConfig{
+		ServerName: "context7",
+		Transport:  "stdio",
+		Command:    "npx",
+		Args:       []string{"@upstash/context7-mcp@latest"},
+		Timeout:    30 * time.Second,
+		MaxRetries: 3,
+		RetryDelay: time.Second,
+	}
 }
 
-// Context7ResolveArgs Context7 库 ID 解析参数
-type Context7ResolveArgs struct {
-	LibraryName string `json:"libraryName" jsonschema:"required,description=Library name to search for"`
-}
-
-// Context7DocsArgs Context7 文档获取参数
-type Context7DocsArgs struct {
-	Context7CompatibleLibraryID string  `json:"context7CompatibleLibraryID" jsonschema:"required,description=Context7-compatible library ID"`
-	Tokens                      int     `json:"tokens,omitempty" jsonschema:"description=Max tokens to retrieve, default 10000"`
-	Topic                       string  `json:"topic,omitempty" jsonschema:"description=Topic to focus on"`
-}
+// 注意: 删除了具体的客户端类型(DeepWikiClient, Context7Client)和参数类型
+// 因为统一客户端使用interface{}接收参数，由MCP协议动态验证
+// 这样更灵活，符合原TypeScript版本的设计理念

@@ -84,16 +84,29 @@ func (m *Manager) Stop() error {
 	return nil
 }
 
-// RegisterDeepWikiClient 注册 DeepWiki 客户端
-func (m *Manager) RegisterDeepWikiClient(config ClientConfig) error {
-	client := NewDeepWikiClient(config)
-	return m.registry.RegisterClient("deepwiki", client)
+// RegisterMCPClient 注册通用MCP客户端
+// 替代旧的特定客户端注册方法
+func (m *Manager) RegisterMCPClient(config ClientConfig) error {
+	client := NewClient(config)
+	return m.registry.RegisterClient(config.ServerName, client)
 }
 
-// RegisterContext7Client 注册 Context7 客户端
-func (m *Manager) RegisterContext7Client(config ClientConfig) error {
-	client := NewContext7Client(config)
-	return m.registry.RegisterClient("context7", client)
+// RegisterSequentialThinkingClient 注册Sequential Thinking客户端（便捷方法）
+func (m *Manager) RegisterSequentialThinkingClient() error {
+	config := NewSequentialThinkingConfig()
+	return m.RegisterMCPClient(config)
+}
+
+// RegisterDeepWikiClient 注册DeepWiki客户端（便捷方法）
+func (m *Manager) RegisterDeepWikiClient() error {
+	config := NewDeepWikiConfig()
+	return m.RegisterMCPClient(config)
+}
+
+// RegisterContext7Client 注册Context7客户端（便捷方法）
+func (m *Manager) RegisterContext7Client() error {
+	config := NewContext7Config()
+	return m.RegisterMCPClient(config)
 }
 
 // RegisterClient 注册自定义客户端
