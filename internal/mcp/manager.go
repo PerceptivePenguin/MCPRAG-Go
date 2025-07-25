@@ -17,19 +17,21 @@ type Manager struct {
 
 // ManagerConfig 管理器配置
 type ManagerConfig struct {
-	AutoReconnect     bool          `json:"autoReconnect"`
-	ReconnectInterval time.Duration `json:"reconnectInterval"`
-	HealthCheckInterval time.Duration `json:"healthCheckInterval"`
-	EnableHealthCheck bool          `json:"enableHealthCheck"`
+	AutoReconnect        bool          `json:"autoReconnect"`
+	ReconnectInterval    time.Duration `json:"reconnectInterval"`
+	HealthCheckInterval  time.Duration `json:"healthCheckInterval"`
+	EnableHealthCheck    bool          `json:"enableHealthCheck"`
+	MaxConcurrentClients int           `json:"maxConcurrentClients"`
 }
 
 // DefaultManagerConfig 返回默认的管理器配置
 func DefaultManagerConfig() ManagerConfig {
 	return ManagerConfig{
-		AutoReconnect:       true,
-		ReconnectInterval:   30 * time.Second,
-		HealthCheckInterval: 60 * time.Second,
-		EnableHealthCheck:   true,
+		AutoReconnect:        true,
+		ReconnectInterval:    30 * time.Second,
+		HealthCheckInterval:  60 * time.Second,
+		EnableHealthCheck:    true,
+		MaxConcurrentClients: 10,
 	}
 }
 
